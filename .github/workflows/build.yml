@@ -1,42 +1,37 @@
-name: Build
+name: Build Create Mod (Manual)
+
 on:
-  push:
-  pull_request:
-  workflow_dispatch:
+  workflow_dispatch:  # 手动触发
     inputs:
-      is-release:
-        description: 'Publish release to Modrinth, Curseforge and Github'
+      branch:
+        description: 'Branch to build (default: mc1.20.1/dev)'
         required: false
-        default: false
-        type: boolean
+        default: 'mc1.20.1/dev'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
         with:
-          cache-disabled: ${{ inputs.is-release }}
-          cache-read-only: false
+          ref: ${{ github.event.inputs.branch || 'mc1.20.1/dev' }}
 
-      - name: Build
-        run: ./gradlew build
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-      - name: Run Gametests
-        if: ${{ !inputs.is-release }}
-        run: ./gradlew runGameTestServer
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
 
-      - name: Publish
-        if: ${{ inputs.is-release }}
-        env:
-          MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-          CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew publishMods
+      - name: Build mod with Gradle
+        run: ./gradlew jar
+
+      - name: Upload JAR from build/libs/
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: create-mod-build-libs
+          path: build/libs/*.jar
